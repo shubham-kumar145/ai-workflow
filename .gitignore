@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.env
+*.log
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Code the agents generate at runtime
+ai-service/workspaces/
+
+# Local build/editor leftovers
+*.tsbuildinfo
+.DS_Store
+Thumbs.db

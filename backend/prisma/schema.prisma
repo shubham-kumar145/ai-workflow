@@ -1,0 +1,241 @@
+// Prisma OWNS this schema and all migrations.
+// The Python AI service reads these same tables read-only via SQLAlchemy
+// reflection and must NEVER create or alter tables.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CLIENT
+  ADMIN
+}
+
+/// The single source of truth for workflow state.
+enum ProjectStatus {
+  SUBMITTED
+  PLANNING
+  CLIENT_APPROVAL_PLAN
+  CHANGES_REQUESTED_PLAN
+  DEVELOPMENT
+  CODE_REVIEW
+  QA
+  TEST_FAILED
+  STAGING_REVIEW
+  CHANGES_REQUESTED_BUILD
+  PRODUCTION_APPROVAL
+  DEPLOYMENT
+  COMPLETED
+  BLOCKED
+  CANCELLED
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  CODE_REVIEW
+  QA
+  TEST_FAILED
+  DONE
+  BLOCKED
+}
+
+enum AgentRole {
+  PROJECT_MANAGER
+  ARCHITECT
+  FRONTEND_DEV
+  BACKEND_DEV
+  QA_ENGINEER
+  DEVOPS
+}
+
+enum ApprovalStage {
+  PLAN
+  BUILD
+  PRODUCTION
+}
+
+enum ApprovalDecision {
+  APPROVED
+  CHANGES_REQUESTED
+}
+
+enum AgentRunStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      Role     @default(CLIENT)
+  createdAt DateTime @default(now())
+
+  projects  Project[]  @relation("ClientProjects")
+  approvals Approval[]
+
+  @@map("users")
+}
+
+model Project {
+  id           String        @id @default(uuid())
+  title        String
+  requirements String
+  budget       Float         @default(0)
+  deadline     DateTime?
+  status       ProjectStatus @default(SUBMITTED)
+
+  clientId String
+  client   User   @relation("ClientProjects", fields: [clientId], references: [id], onDelete: Cascade)
+
+  // Two SEPARATE counters. Client-requested revisions only.
+  // Agent self-repair retries are tracked per task (Task.attempts) and never
+  // consume these.
+  planRevisionCount  Int @default(0)
+  buildRevisionCount Int @default(0)
+  maxPlanRevisions   Int @default(2)
+  maxBuildRevisions  Int @default(3)
+
+  // Cost tracking + budget cap (Step 2)
+  costUsd      Float  @default(0)
+  budgetCapUsd Float  @default(5)
+
+  currentVersionId String?
+  workspacePath    String?
+  stagingUrl       String?
+  productionUrl    String?
+  releaseSummary   String?
+  blockedReason    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  versions ProjectVersion[]
+  tasks    Task[]
+  approvals Approval[]
+  agentRuns AgentRun[]
+  events    WorkflowEvent[]
+
+  @@index([clientId])
+  @@index([status])
+  @@map("projects")
+}
+
+/// Immutable snapshot. Approvals point at an exact version.
+model ProjectVersion {
+  id            String   @id @default(uuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versionNumber Int
+  label         String
+  planJson         Json?
+  architectureJson Json?
+  apiContractJson  Json?
+  createdAt     DateTime @default(now())
+
+  approvals Approval[]
+
+  @@unique([projectId, versionNumber])
+  @@index([projectId])
+  @@map("project_versions")
+}
+
+model Task {
+  id          String     @id @default(uuid())
+  projectId   String
+  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title       String
+  description String
+  agentRole   AgentRole
+  status      TaskStatus @default(PENDING)
+  orderIndex  Int        @default(0)
+
+  /// Self-repair counter. SEPARATE from the client's revision counters.
+  attempts       Int     @default(0)
+  lastTestOutput String?
+  lastFailureCount Int?
+  filesJson      Json?
+  branchName     String?
+  pullRequestUrl String?
+
+  // Self-referencing dependency graph
+  dependencies Task[] @relation("TaskDependencies")
+  dependents   Task[] @relation("TaskDependencies")
+
+  agentRuns AgentRun[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+  @@map("tasks")
+}
+
+model Approval {
+  id        String           @id @default(uuid())
+  projectId String
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versionId String?
+  version   ProjectVersion?  @relation(fields: [versionId], references: [id])
+  stage     ApprovalStage
+  decision  ApprovalDecision
+  feedback  String?
+
+  decidedById String
+  decidedBy   User   @relation(fields: [decidedById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([projectId])
+  @@map("approvals")
+}
+
+/// Audit trail for every LLM call, with token + cost accounting.
+model AgentRun {
+  id        String         @id @default(uuid())
+  projectId String
+  project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  taskId    String?
+  task      Task?          @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  agentRole AgentRole
+  model     String
+  status    AgentRunStatus @default(RUNNING)
+
+  promptTokens     Int   @default(0)
+  completionTokens Int   @default(0)
+  costUsd          Float @default(0)
+
+  summary String?
+  error   String?
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([projectId])
+  @@map("agent_runs")
+}
+
+/// Append-only. Written by the ONE transition function.
+model WorkflowEvent {
+  id         String         @id @default(uuid())
+  projectId  String
+  project    Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type       String
+  fromStatus ProjectStatus?
+  toStatus   ProjectStatus?
+  actor      String         @default("system")
+  message    String
+  dataJson   Json?
+  createdAt  DateTime       @default(now())
+
+  @@index([projectId])
+  @@map("workflow_events")
+}

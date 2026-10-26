@@ -1,0 +1,24 @@
+# Optional: use this instead of installing PostgreSQL natively on Windows.
+#   docker compose up -d
+# Then the DATABASE_URL in the .env files works unchanged.
+services:
+  postgres:
+    image: postgres:16
+    container_name: aiworkflow-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aiworkflow
+      POSTGRES_PASSWORD: aiworkflow
+      POSTGRES_DB: aiworkflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aiworkflow -d aiworkflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
