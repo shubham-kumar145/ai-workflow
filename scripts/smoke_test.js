@@ -24,21 +24,34 @@ const fail = (msg) => {
 };
 
 async function call(path, { method = "GET", body, base = BACKEND } = {}) {
-  const res = await fetch(`${base}${path}`, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  const send = () =>
+    fetch(`${base}${path}`, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  // Hosted proxies (Render) occasionally drop a connection. Retry reads only;
+  // retrying a POST could approve or submit twice.
+  let res;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      res = await send();
+      break;
+    } catch (err) {
+      if (method !== "GET" || attempt >= 4) throw err;
+      await new Promise((r) => setTimeout(r, 1500 * attempt));
+    }
+  }
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
   if (!res.ok) throw new Error(`${method} ${path} -> ${res.status}: ${data?.error ?? text}`);
   return data;
 }
 
-async function waitForStatus(id, wanted, timeoutMs = 240_000) {
+async function waitForStatus(id, wanted, timeoutMs = 480_000) {
   const deadline = Date.now() + timeoutMs;
   let last = "";
   while (Date.now() < deadline) {
