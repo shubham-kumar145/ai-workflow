@@ -7,7 +7,7 @@ let io: IOServer | null = null;
 
 export function initSockets(httpServer: HttpServer): IOServer {
   io = new IOServer(httpServer, {
-    cors: { origin: env.CORS_ORIGIN, credentials: true },
+    cors: { origin: env.CORS_ORIGINS, credentials: true },
   });
 
   io.use((socket, next) => {

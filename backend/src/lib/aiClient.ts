@@ -8,7 +8,9 @@ import { env } from "./env";
 async function call(method: "POST" | "DELETE", path: string, body?: unknown): Promise<unknown> {
   const url = `${env.AI_SERVICE_URL}${path}`;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15_000);
+  // Free hosts put an idle AI service to sleep; waking it can take about a
+  // minute, and the request is held until it answers.
+  const timeout = setTimeout(() => controller.abort(), 100_000);
   try {
     const res = await fetch(url, {
       method,

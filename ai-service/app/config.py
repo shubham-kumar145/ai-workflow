@@ -10,6 +10,15 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+def _db_url(raw: str) -> str:
+    # Hosts like Neon hand out postgresql:// (or postgres://); SQLAlchemy needs the
+    # psycopg driver named, so the same string works in both services.
+    for prefix in ("postgresql://", "postgres://"):
+        if raw.startswith(prefix):
+            return "postgresql+psycopg://" + raw[len(prefix):]
+    return raw
+
+
 def _int(name: str, default: int) -> int:
     try:
         return int(os.getenv(name, str(default)))
@@ -29,10 +38,15 @@ class Settings:
     )
 
     # Read-only reflection. Prisma owns the schema.
-    DATABASE_URL: str = os.getenv(
+    DATABASE_URL: str = _db_url(os.getenv(
         "DATABASE_URL",
         "postgresql+psycopg://aiworkflow:aiworkflow@localhost:5432/aiworkflow",
-    )
+    ))
+
+    # Where this service is reachable from the internet (Render sets
+    # RENDER_EXTERNAL_URL). When set, preview links go through /preview/... here
+    # instead of pointing at localhost ports nobody else can open.
+    PUBLIC_URL: str = (os.getenv("PUBLIC_URL") or os.getenv("RENDER_EXTERNAL_URL") or "").rstrip("/")
 
     # The agent self-repair budget. Deliberately separate from the client's
     # revision budget, which lives in the projects table.
@@ -51,6 +65,10 @@ class Settings:
 
 settings = Settings()
 settings.WORKSPACE_ROOT.mkdir(parents=True, exist_ok=True)
+
+# The default secret is in a public repo; anyone could drive the agents with it.
+if os.getenv("RENDER") and settings.INTERNAL_SERVICE_SECRET == "dev-internal-secret-change-me":
+    raise RuntimeError("INTERNAL_SERVICE_SECRET must be set to a private value in production.")
 
 # Price per 1M tokens, USD. Used for cost accounting in agent_runs.
 MODEL_PRICING: dict[str, tuple[float, float]] = {

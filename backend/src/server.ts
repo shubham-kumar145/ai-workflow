@@ -14,7 +14,10 @@ import { ALLOWED_TRANSITIONS } from "./lib/events";
 
 const app = express();
 
-app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
+// Behind a hosting proxy (Render) the client's IP arrives in X-Forwarded-For;
+// without this every visitor shares one IP and one login rate limit.
+if (env.NODE_ENV === "production") app.set("trust proxy", 1);
+app.use(cors({ origin: env.CORS_ORIGINS, credentials: true }));
 app.use(express.json({ limit: "2mb" }));
 
 app.get("/health", async (_req, res) => {

@@ -1,0 +1,64 @@
+# Render Blueprint: the backend and the AI service on Render's free plan.
+# The website goes on Vercel and the database on Neon (see DEPLOY.md).
+# Values marked `sync: false` are secrets or URLs you type in on Render.
+
+envVarGroups:
+  - name: ai-workflow-shared
+    envVars:
+      # Must be identical in both services; Render generates a random one.
+      - key: INTERNAL_SERVICE_SECRET
+        generateValue: true
+
+services:
+  - type: web
+    name: ai-workflow-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm ci --include=dev && npx prisma generate && npm run build
+    startCommand: npm run start:prod
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: ai-workflow-shared
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL          # Neon connection string
+        sync: false
+      - key: CORS_ORIGIN           # your Vercel site, e.g. https://ai-workflow.vercel.app
+        sync: false
+      - key: AI_SERVICE_URL        # e.g. https://ai-workflow-ai-service.onrender.com
+        sync: false
+      - key: SEED_ADMIN_EMAIL
+        value: admin@aiworkflow.dev
+      - key: SEED_ADMIN_PASSWORD   # pick your own; the demo one is public
+        sync: false
+      - key: SEED_CLIENT_EMAIL
+        value: client@aiworkflow.dev
+      - key: SEED_CLIENT_PASSWORD
+        sync: false
+
+  - type: web
+    name: ai-workflow-ai-service
+    runtime: docker
+    plan: free
+    dockerContext: ./ai-service
+    dockerfilePath: ./ai-service/Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: ai-workflow-shared
+      - key: DATABASE_URL          # the same Neon connection string
+        sync: false
+      - key: BACKEND_URL           # e.g. https://ai-workflow-backend.onrender.com
+        sync: false
+      - key: OPENAI_API_KEY        # your Gemini key
+        sync: false
+      - key: OPENAI_BASE_URL
+        value: https://generativelanguage.googleapis.com/v1beta/openai/
+      - key: OPENAI_MODEL
+        value: gemini-flash-lite-latest
+      - key: MAX_SELF_REPAIR_RETRIES
+        value: "6"

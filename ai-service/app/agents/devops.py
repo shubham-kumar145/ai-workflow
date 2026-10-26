@@ -15,6 +15,29 @@ log = logging.getLogger("devops")
 
 # project_id -> running preview process
 _RUNNING: dict[str, subprocess.Popen] = {}
+# preview path key (project id, or "<id>-prod") -> local port, for the public /preview proxy
+_PORTS: dict[str, int] = {}
+
+
+def _path_key(key: str) -> str:
+    return key.replace(":", "-")
+
+
+def preview_port(path_key: str) -> int | None:
+    """Local port of a running preview, by the key used in its /preview/<key>/ link."""
+    port = _PORTS.get(path_key)
+    if port is None:
+        return None
+    for key, proc in _RUNNING.items():
+        if _path_key(key) == path_key:
+            return port if proc.poll() is None else None
+    return None
+
+
+def public_url(key: str, port: int) -> str:
+    if settings.PUBLIC_URL:
+        return f"{settings.PUBLIC_URL}/preview/{_path_key(key)}/"
+    return f"http://localhost:{port}"
 
 
 @dataclass
@@ -85,6 +108,7 @@ def _log_path(key: str) -> Path:
 
 
 def stop_preview(project_id: str) -> None:
+    _PORTS.pop(_path_key(project_id), None)
     proc = _RUNNING.pop(project_id, None)
     if proc and proc.poll() is None:
         proc.terminate()
@@ -138,7 +162,9 @@ def deploy_preview(project_id: str, workspace: Path, port_offset: int = 0) -> De
         output = log_path.read_text(encoding="utf-8", errors="replace")[-1000:] if log_path.exists() else ""
         return DeployResult(False, None, port, code, f"Smoke test failed: {detail} {output}".strip())
 
-    return DeployResult(True, url, port, code, f"Smoke test passed: GET {url}/api/health -> 200")
+    _PORTS[_path_key(project_id)] = port
+    link = public_url(project_id, port)
+    return DeployResult(True, link, port, code, f"Smoke test passed: GET {url}/api/health -> 200")
 
 
 def deploy_staging(project_id: str, workspace: Path) -> DeployResult:

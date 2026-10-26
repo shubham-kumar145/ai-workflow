@@ -54,3 +54,10 @@ def health():
 def health_db():
     """Proves the SQLAlchemy reflection path works against Prisma's tables."""
     return db.healthcheck()
+
+
+# Last: its catch-all route forwards a preview page's /api/... and asset requests,
+# so every real route above must be registered first.
+from .api.preview import router as preview_router  # noqa: E402
+
+app.include_router(preview_router)

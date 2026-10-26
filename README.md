@@ -4,7 +4,8 @@ A software agency where every employee is an AI agent. A client submits a brief;
 AI agents plan it, design it, build it, test it and deploy it, pausing at fixed
 checkpoints for human approval. The dashboard shows the whole office working, live.
 
-**To run it: [START-HERE.md](START-HERE.md).**
+**To run it: [START-HERE.md](START-HERE.md).** To put it online for free
+(Vercel + Render + Neon): [DEPLOY.md](DEPLOY.md).
 
 ---
 
