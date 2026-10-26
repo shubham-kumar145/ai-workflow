@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 import httpx
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from starlette.concurrency import run_in_threadpool
 
 from ..agents import devops as devops_agent
 
@@ -29,9 +30,10 @@ DROP = {
 
 NOT_RUNNING = """<!doctype html><meta charset="utf-8"><title>Preview not running</title>
 <body style="font:15px system-ui;background:#0b1220;color:#e6ecf7;display:grid;place-items:center;min-height:90vh;margin:0">
-<div style="max-width:440px;padding:24px"><h1 style="font-size:20px">This preview is not running</h1>
-<p style="color:#8a9ab8;line-height:1.6">The free server it ran on went to sleep or restarted, and its files were cleared.
-To bring it back, an admin can open the project and use <b>Unblock and retry</b>, or the client can request a change.</p></div>"""
+<div style="max-width:440px;padding:24px"><h1 style="font-size:20px">This preview could not be started</h1>
+<p style="color:#8a9ab8;line-height:1.6">Previews restart by themselves from the code saved when they were deployed.
+This one has no saved code, usually because it was built before previews were saved, or its project was deleted.
+To bring it back, the client can request a change, which rebuilds and saves it.</p></div>"""
 
 
 def _referer_key(request: Request) -> str | None:
@@ -68,7 +70,9 @@ def preview_root(key: str):
 
 @router.api_route("/preview/{key}/{path:path}", methods=METHODS, include_in_schema=False)
 async def preview(key: str, path: str, request: Request):
-    port = devops_agent.preview_port(key)
+    # Starting a stopped preview (and restoring its code) blocks for a few
+    # seconds, so it runs in a worker thread instead of the event loop.
+    port = await run_in_threadpool(devops_agent.ensure_preview, key)
     if port is None:
         return HTMLResponse(NOT_RUNNING, status_code=404)
     resp = await _forward(request, port, "/" + path)
@@ -80,7 +84,7 @@ async def preview(key: str, path: str, request: Request):
 async def preview_assets(path: str, request: Request):
     """Root-relative requests made by a preview page. Registered last, so real routes win."""
     key = _referer_key(request) or request.cookies.get(COOKIE)
-    port = devops_agent.preview_port(key) if key else None
+    port = await run_in_threadpool(devops_agent.ensure_preview, key) if key else None
     if port is None:
         return JSONResponse({"detail": "Not Found"}, status_code=404)
     return await _forward(request, port, "/" + path)

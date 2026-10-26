@@ -123,10 +123,23 @@ model Project {
   approvals Approval[]
   agentRuns AgentRun[]
   events    WorkflowEvent[]
+  workspaceSnapshot WorkspaceSnapshot?
 
   @@index([clientId])
   @@index([status])
   @@map("projects")
+}
+
+/// A zip of the generated code, so previews survive a host that wipes its disk
+/// on restart. Its own table so normal project reads never carry the bytes.
+model WorkspaceSnapshot {
+  projectId String   @id
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  archive   Bytes
+  sizeBytes Int
+  savedAt   DateTime @updatedAt
+
+  @@map("workspace_snapshots")
 }
 
 /// Immutable snapshot. Approvals point at an exact version.

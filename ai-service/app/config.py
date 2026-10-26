@@ -56,6 +56,10 @@ class Settings:
     QA_SANDBOX: str = os.getenv("QA_SANDBOX", "subprocess").lower()
     QA_TIMEOUT_SECONDS: int = _int("QA_TIMEOUT_SECONDS", 120)
     STAGING_PORT_START: int = _int("STAGING_PORT_START", 7100)
+    # Each running preview is a Node process (~50 MB). Render's free plan has
+    # 512 MB, so keep only a few there; beyond the cap the least recently used
+    # one stops, and starts again on its next visit.
+    MAX_RUNNING_PREVIEWS: int = _int("MAX_RUNNING_PREVIEWS", 3 if os.getenv("RENDER") else 50)
 
     @property
     def mock_mode(self) -> bool:

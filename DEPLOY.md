@@ -74,10 +74,12 @@ while Render wakes the backend. Sign in as `admin@aiworkflow.dev` or
 
 - **Preview links** for generated projects point to
   `https://<ai-service>/preview/<project-id>/` instead of `localhost:7100`.
-- **Generated projects are temporary.** Render wipes the AI service's disk when
-  it restarts or wakes from sleep, so previews and source downloads of older
-  projects stop working ("This preview is not running"). The projects, plans,
-  tasks and history stay in the database.
+- **Previews restart themselves.** Render wipes the AI service's disk when it
+  restarts or wakes from sleep. Each project's generated code is saved in the
+  database when it deploys, so the first visit to a preview after a restart
+  restores the code and starts the app (a few extra seconds). At most 3 previews
+  run at once on the free plan's 512 MB; the least recently used one stops and
+  starts again on its next visit (`MAX_RUNNING_PREVIEWS` changes the cap).
 - **Gemini's free tier** has per-minute limits; a large project can briefly hit them.
 
 ## Updating

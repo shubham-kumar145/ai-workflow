@@ -9,6 +9,7 @@ from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Response
 from pydantic import BaseModel
 
 from ..agents import devops as devops_agent
+from ..agents import snapshot
 from ..config import settings
 from ..orchestrator import run_workflow
 
@@ -90,7 +91,7 @@ def project_archive(project_id: str, x_internal_secret: str | None = Header(defa
         raise HTTPException(status_code=400, detail="project_id must be a UUID")
 
     workspace = settings.WORKSPACE_ROOT / project_id
-    if not workspace.is_dir():
+    if not (workspace / "server.js").exists() and not snapshot.restore(project_id, workspace):
         raise HTTPException(status_code=404, detail="No generated code for this project")
 
     buf = io.BytesIO()

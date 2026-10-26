@@ -16,6 +16,10 @@ services:
     plan: free
     region: singapore   # same region as the Neon database
     rootDir: backend
+    # Only redeploy when this service's own code changes.
+    buildFilter:
+      paths:
+        - backend/**
     buildCommand: npm ci --include=dev && npx prisma generate && npm run build
     startCommand: npm run start:prod
     healthCheckPath: /health
@@ -49,6 +53,11 @@ services:
     region: singapore   # same region as the Neon database
     dockerContext: ./ai-service
     dockerfilePath: ./ai-service/Dockerfile
+    # A redeploy restarts the service and wipes its disk, so skip unrelated pushes
+    # (website, scripts, docs). Previews restore from their snapshots either way.
+    buildFilter:
+      paths:
+        - ai-service/**
     healthCheckPath: /health
     envVars:
       - fromGroup: ai-workflow-shared

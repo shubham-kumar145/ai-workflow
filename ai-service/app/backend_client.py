@@ -115,6 +115,22 @@ class BackendClient:
         payload = {k: v for k, v in payload.items() if v is not None}
         return self._request("PATCH", f"/internal/agent-runs/{run_id}", payload)
 
+    # ---- workspace snapshots --------------------------------------------
+    def save_workspace(self, project_id: str, archive_b64: str) -> dict[str, Any]:
+        return self._request("PUT", f"/internal/projects/{project_id}/workspace", {"archiveBase64": archive_b64})
+
+    def load_workspace(self, project_id: str) -> str | None:
+        """The saved zip (base64), or None if this project never saved one."""
+        try:
+            res = self._client.get(f"{self.base_url}/internal/projects/{project_id}/workspace")
+        except httpx.HTTPError as exc:
+            raise BackendError(f"GET workspace failed: {exc}") from exc
+        if res.status_code == 404:
+            return None
+        if res.status_code >= 400:
+            raise BackendError(f"GET workspace -> {res.status_code}: {res.text[:400]}")
+        return res.json().get("archiveBase64")
+
     # ---- state machine -------------------------------------------------
     def set_status(self, project_id: str, to: str, message: str, **patch: Any) -> dict[str, Any]:
         payload: dict[str, Any] = {"to": to, "message": message, "actor": "ai-service"}

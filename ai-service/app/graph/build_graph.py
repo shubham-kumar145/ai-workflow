@@ -11,6 +11,7 @@ from ..agents import developer as developer_agent
 from ..agents import devops as devops_agent
 from ..agents import pm as pm_agent
 from ..agents import qa as qa_agent
+from ..agents import snapshot
 from ..backend_client import backend
 from ..config import settings
 
@@ -353,6 +354,7 @@ def devops_node(state: WFState) -> WFState:
         )
         return {**state, "blocked": True}
 
+    snapshot.save(project_id, workspace)
     backend.set_status(
         project_id,
         "STAGING_REVIEW",
@@ -366,7 +368,11 @@ def devops_node(state: WFState) -> WFState:
 def production_node(state: WFState) -> WFState:
     project_id = state["project_id"]
     project = backend.get_project(project_id)
-    workspace = Path(project.get("workspacePath") or developer_agent.ensure_workspace(project_id))
+    workspace = settings.WORKSPACE_ROOT / project_id
+    # Approval can come days after staging; on a host that wiped its disk in
+    # between, the code comes back from the snapshot saved at staging.
+    if not (workspace / "server.js").exists():
+        snapshot.restore(project_id, workspace)
 
     run_id = backend.start_agent_run(project_id, "DEVOPS", "production deploy + smoke test")
     deploy = devops_agent.deploy_production(project_id, workspace)

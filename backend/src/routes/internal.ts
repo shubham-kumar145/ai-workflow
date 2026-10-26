@@ -320,6 +320,32 @@ internalRouter.post("/projects/:id/status", async (req, res, next) => {
   }
 });
 
+/** Save a zip of the generated code, so a preview can be restored after the AI service's disk is wiped. */
+internalRouter.put("/projects/:id/workspace", async (req, res, next) => {
+  try {
+    const body = z.object({ archiveBase64: z.string().min(1).max(1_400_000) }).parse(req.body);
+    const archive = Buffer.from(body.archiveBase64, "base64");
+    await prisma.workspaceSnapshot.upsert({
+      where: { projectId: req.params.id },
+      create: { projectId: req.params.id, archive, sizeBytes: archive.length },
+      update: { archive, sizeBytes: archive.length },
+    });
+    res.json({ saved: true, sizeBytes: archive.length });
+  } catch (e) {
+    next(e);
+  }
+});
+
+internalRouter.get("/projects/:id/workspace", async (req, res, next) => {
+  try {
+    const snap = await prisma.workspaceSnapshot.findUnique({ where: { projectId: req.params.id } });
+    if (!snap) return res.status(404).json({ error: "No saved workspace for this project" });
+    res.json({ archiveBase64: Buffer.from(snap.archive).toString("base64"), savedAt: snap.savedAt });
+  } catch (e) {
+    next(e);
+  }
+});
+
 internalRouter.post("/projects/:id/events", async (req, res, next) => {
   try {
     const body = z
