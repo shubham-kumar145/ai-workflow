@@ -141,7 +141,8 @@ async function main() {
   log("   revision counters still separate from agent retries");
 
   if (!built.stagingUrl) fail("no staging URL");
-  const staging = await fetch(`${built.stagingUrl}/api/health`);
+  // Hosted preview links end in "/"; don't turn that into "//api/health".
+  const staging = await fetch(`${built.stagingUrl.replace(/\/+$/, "")}/api/health`);
   if (staging.status !== 200) fail(`staging URL returned ${staging.status}`);
   log(`   staging live: ${built.stagingUrl} -> 200`);
 

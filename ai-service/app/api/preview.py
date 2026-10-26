@@ -75,7 +75,8 @@ async def preview(key: str, path: str, request: Request):
     port = await run_in_threadpool(devops_agent.ensure_preview, key)
     if port is None:
         return HTMLResponse(NOT_RUNNING, status_code=404)
-    resp = await _forward(request, port, "/" + path)
+    # "/preview/<id>//api/x" (a link joined onto the trailing slash) means "/api/x".
+    resp = await _forward(request, port, "/" + path.lstrip("/"))
     resp.set_cookie(COOKIE, key, httponly=True, samesite="lax", path="/")
     return resp
 
