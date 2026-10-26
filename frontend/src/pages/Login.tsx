@@ -39,10 +39,13 @@ export default function Login() {
       <p className="text-sm text-slate-400">
         No account? <Link to="/signup" className="text-sky-400 hover:underline">Sign up</Link>
       </p>
-      <p className="rounded-lg bg-slate-900 p-3 text-xs text-slate-500">
-        Seeded accounts: <code className="text-slate-300">client@aiworkflow.dev / client1234</code> ·{" "}
-        <code className="text-slate-300">admin@aiworkflow.dev / admin1234</code>
-      </p>
+      {/* Local demo accounts only; a live site sets its own passwords. */}
+      {import.meta.env.DEV && (
+        <p className="rounded-lg bg-slate-900 p-3 text-xs text-slate-500">
+          Seeded accounts: <code className="text-slate-300">client@aiworkflow.dev / client1234</code> ·{" "}
+          <code className="text-slate-300">admin@aiworkflow.dev / admin1234</code>
+        </p>
+      )}
     </div>
   );
 }
