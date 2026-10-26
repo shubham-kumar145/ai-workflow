@@ -14,6 +14,7 @@ services:
     name: ai-workflow-backend
     runtime: node
     plan: free
+    region: singapore   # same region as the Neon database
     rootDir: backend
     buildCommand: npm ci --include=dev && npx prisma generate && npm run build
     startCommand: npm run start:prod
@@ -45,6 +46,7 @@ services:
     name: ai-workflow-ai-service
     runtime: docker
     plan: free
+    region: singapore   # same region as the Neon database
     dockerContext: ./ai-service
     dockerfilePath: ./ai-service/Dockerfile
     healthCheckPath: /health
