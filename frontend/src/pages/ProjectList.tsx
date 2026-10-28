@@ -1,48 +1,80 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "../store";
 import { fetchProjects } from "../store/projectsSlice";
-import { Card, Empty, StatusBadge } from "../components/ui";
+import { Empty } from "../components/ui";
+import { Icon } from "../components/agentMeta";
+import { StageTrack, StatusPill, initials, phaseOf } from "../components/projectStage";
+import type { Project } from "../types";
+
+const FILTERS = [
+  { key: "all", label: "All", test: () => true },
+  { key: "active", label: "In progress", test: (p: Project) => phaseOf(p.status) === "active" },
+  { key: "attention", label: "Needs attention", test: (p: Project) => ["review", "blocked"].includes(phaseOf(p.status)) },
+  { key: "done", label: "Completed", test: (p: Project) => p.status === "COMPLETED" },
+] as const;
 
 export default function ProjectList() {
   const dispatch = useAppDispatch();
   const { list, status } = useAppSelector((s) => s.projects);
+  const [filter, setFilter] = useState<(typeof FILTERS)[number]["key"]>("all");
 
   useEffect(() => { dispatch(fetchProjects()); }, [dispatch]);
 
+  const shown = list.filter(FILTERS.find((f) => f.key === filter)!.test);
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-slate-100">Projects</h1>
-        <Link to="/projects/new" className="rounded-lg bg-sky-500 px-3.5 py-2 text-sm font-semibold text-slate-950 hover:bg-sky-400">
-          New project
-        </Link>
+    <div>
+      <div className="ap-head">
+        <div>
+          <div className="ap-eyebrow">Your agency</div>
+          <h1 className="ap-h1">Projects</h1>
+          <p className="ap-sub">Every brief you submit, and where the agents are with it.</p>
+        </div>
+        <Link to="/projects/new" className="ap-btn">+ New project</Link>
       </div>
 
-      {status === "loading" && list.length === 0 && <Empty>Loading…</Empty>}
-      {status !== "loading" && list.length === 0 && (
-        <Empty>No projects yet. Submit one and the agents get to work.</Empty>
+      {list.length > 0 && (
+        <div className="ap-chips" role="group" aria-label="Filter projects">
+          {FILTERS.map((f) => (
+            <button key={f.key} className={`ap-chip${filter === f.key ? " on" : ""}`} aria-pressed={filter === f.key}
+              onClick={() => setFilter(f.key)}>
+              {f.label} <b>{list.filter(f.test).length}</b>
+            </button>
+          ))}
+        </div>
       )}
 
-      <div className="grid gap-3 md:grid-cols-2">
-        {list.map((project) => (
-          <Link key={project.id} to={`/projects/${project.id}`}>
-            <Card className="h-full transition hover:border-sky-600">
-              <div className="flex items-start justify-between gap-3">
-                <h2 className="font-semibold text-slate-100">{project.title}</h2>
-                <StatusBadge status={project.status} />
-              </div>
-              <p className="mt-1.5 line-clamp-2 text-sm text-slate-400">{project.requirements}</p>
-              <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
-                <span>{project._count?.tasks ?? project.tasks?.length ?? 0} tasks</span>
-                <span>${(project.costUsd ?? 0).toFixed(4)} spent</span>
-                <span>plan {project.planRevisionCount}/{project.maxPlanRevisions}</span>
-                <span>build {project.buildRevisionCount}/{project.maxBuildRevisions}</span>
-                {project.client && <span>{project.client.name}</span>}
-              </div>
-            </Card>
+      {status === "loading" && list.length === 0 && <Empty>Loading…</Empty>}
+      {list.length > 0 && shown.length === 0 && <Empty>No projects here.</Empty>}
+
+      <div className="ap-grid">
+        {shown.map((project) => (
+          <Link key={project.id} to={`/projects/${project.id}`} className="ap-card ap-proj">
+            <div className="ap-proj-top">
+              <h2>{project.title}</h2>
+              <StatusPill status={project.status} />
+            </div>
+            <p>{project.requirements}</p>
+            <StageTrack status={project.status} />
+            <div className="ap-meta">
+              <span><Icon name="ok" />{project._count?.tasks ?? project.tasks?.length ?? 0} tasks</span>
+              <span>${(project.costUsd ?? 0).toFixed(4)} spent</span>
+              <span title="Revisions used">plan {project.planRevisionCount}/{project.maxPlanRevisions} · build {project.buildRevisionCount}/{project.maxBuildRevisions}</span>
+              {project.client && (
+                <span className="ap-owner"><span className="ap-mini-av">{initials(project.client.name)}</span>{project.client.name}</span>
+              )}
+            </div>
           </Link>
         ))}
+
+        {status !== "loading" && filter === "all" && (
+          <Link to="/projects/new" className="ap-newcard">
+            <span className="ap-plus" aria-hidden="true">+</span>
+            <b>{list.length === 0 ? "Submit your first project" : "Start a new project"}</b>
+            <span>Write a brief, the agents do the rest</span>
+          </Link>
+        )}
       </div>
     </div>
   );

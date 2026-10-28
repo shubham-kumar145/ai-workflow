@@ -3,11 +3,27 @@ import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import { useAppDispatch, useAppSelector } from "../store";
 import { fetchProjects, unblockProject } from "../store/projectsSlice";
-import { Button, Card, Empty, LongText, StatusBadge } from "../components/ui";
+import { LongText } from "../components/ui";
+import { Icon, type IconName } from "../components/agentMeta";
+import { StatusPill, progressOf } from "../components/projectStage";
 
 interface Stats {
   projects: number; blocked: number; completed: number;
   agentRuns: number; totalCostUsd: number; totalTokens: number;
+}
+
+/** Delete asks inside the row first: deleting stops servers and removes the generated code. */
+function DeleteButton({ busy, onConfirm }: { busy: boolean; onConfirm: () => void }) {
+  const [asking, setAsking] = useState(false);
+  if (busy) return <span className="ap-confirm">Deleting…</span>;
+  if (!asking) return <button className="ap-del" onClick={() => setAsking(true)}>Delete</button>;
+  return (
+    <span className="ap-confirm" role="group" aria-label="Confirm delete">
+      Delete for good?
+      <button className="ap-del yes" onClick={() => { setAsking(false); onConfirm(); }}>Yes</button>
+      <button className="ap-del" onClick={() => setAsking(false)} autoFocus>No</button>
+    </span>
+  );
 }
 
 export default function AdminPanel() {
@@ -23,6 +39,7 @@ export default function AdminPanel() {
   }, [dispatch]);
 
   const blocked = list.filter((p) => p.status === "BLOCKED");
+  const clients = new Set(list.map((p) => p.clientId)).size;
 
   async function unblock(id: string) {
     setBusy(id);
@@ -33,7 +50,6 @@ export default function AdminPanel() {
   }
 
   async function remove(id: string, title: string) {
-    if (!window.confirm(`Delete "${title}"? This removes its history, stops its staging and production servers, and deletes its generated code. This cannot be undone.`)) return;
     setBusy(id);
     setError(null);
     try {
@@ -47,80 +63,99 @@ export default function AdminPanel() {
     setBusy(null);
   }
 
+  const tiles: { label: string; icon: IconName; tone: string; value: string | number; note: string }[] = stats ? [
+    { label: "Projects", icon: "pm", tone: "sky", value: stats.projects, note: `across ${clients} client${clients === 1 ? "" : "s"}` },
+    { label: "Completed", icon: "ok", tone: "green", value: stats.completed,
+      note: stats.projects ? `${Math.round((stats.completed / stats.projects) * 100)}% done` : "none yet" },
+    { label: "Blocked", icon: "warn", tone: "red", value: stats.blocked, note: stats.blocked ? "need a human" : "all clear" },
+    { label: "Agent runs", icon: "code", tone: "violet", value: stats.agentRuns, note: "all time" },
+    { label: "Total spend", icon: "flag", tone: "teal", value: `$${stats.totalCostUsd.toFixed(4)}`,
+      note: `${stats.totalTokens.toLocaleString()} tokens` },
+  ] : [];
+
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold text-slate-100">Agency admin</h1>
+    <div>
+      <div className="ap-head">
+        <div>
+          <div className="ap-eyebrow">Control room</div>
+          <h1 className="ap-h1">Agency <span className="ap-grad-text">admin</span></h1>
+          <p className="ap-sub">Every project, every agent run, and anything that needs a human.</p>
+        </div>
+      </div>
 
       {error && (
-        <div className="flex items-start justify-between gap-3 rounded-lg border border-rose-900 bg-rose-950/50 p-3 text-sm text-rose-200">
+        <div className="ap-banner" role="alert">
           <span>{error}</span>
-          <button className="text-rose-400 hover:text-rose-200" onClick={() => setError(null)}>Dismiss</button>
+          <button onClick={() => setError(null)}>Dismiss</button>
         </div>
       )}
 
       {stats && (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-          {[
-            { label: "Projects", value: stats.projects },
-            { label: "Completed", value: stats.completed },
-            { label: "Blocked", value: stats.blocked },
-            { label: "Agent runs", value: stats.agentRuns },
-            { label: "Total spend", value: `$${stats.totalCostUsd.toFixed(4)}` },
-          ].map((s) => (
-            <Card key={s.label}>
-              <p className="text-xs uppercase tracking-wide text-slate-500">{s.label}</p>
-              <p className="mt-1 text-xl font-bold text-slate-100">{s.value}</p>
-            </Card>
+        <div className="ap-stats">
+          {tiles.map((t) => (
+            <div key={t.label} className="ap-card ap-stat">
+              <div className="k"><i className={t.tone}><Icon name={t.icon} /></i>{t.label}</div>
+              <div className={`v${t.label === "Blocked" && stats.blocked ? " bad" : ""}`}>{t.value}</div>
+              <div className="t">{t.note}</div>
+            </div>
           ))}
         </div>
       )}
 
-      <Card title="Escalations needing a human">
+      <section className="ap-card ap-panel">
+        <header><h2>Escalations needing a human <span className="ap-badge">{blocked.length}</span></h2></header>
         {blocked.length === 0 ? (
-          <Empty>Nothing is blocked.</Empty>
+          <div className="ap-allclear">
+            <span className="ic"><Icon name="ok" /></span>
+            <b>Nothing is blocked</b>
+            When an agent gets stuck, it shows up here with an Unblock and retry button.
+          </div>
         ) : (
-          <ul className="space-y-2">
+          <ul className="ap-escalations">
             {blocked.map((p) => (
-              <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-950/60 p-3">
+              <li key={p.id}>
                 <div className="min-w-0">
-                  <Link to={`/projects/${p.id}`} className="font-medium text-slate-100 hover:text-sky-400">{p.title}</Link>
-                  <div className="text-xs text-rose-300"><LongText text={p.blockedReason ?? "Blocked"} max={180} /></div>
+                  <Link to={`/projects/${p.id}`} className="ap-pname">{p.title}</Link>
+                  <div className="ap-reason"><LongText text={p.blockedReason ?? "Blocked"} max={180} /></div>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="ghost" disabled={busy === p.id} onClick={() => unblock(p.id)}>
+                <div className="ap-actions">
+                  <button className="ap-btn sm" disabled={busy === p.id} onClick={() => unblock(p.id)}>
                     {busy === p.id ? "Working…" : "Unblock and retry"}
-                  </Button>
-                  <Button variant="danger" disabled={busy === p.id} onClick={() => remove(p.id, p.title)}>
-                    Delete
-                  </Button>
+                  </button>
+                  <DeleteButton busy={busy === p.id} onConfirm={() => remove(p.id, p.title)} />
                 </div>
               </li>
             ))}
           </ul>
         )}
-      </Card>
+      </section>
 
-      <Card title="All projects">
-        <ul className="space-y-1.5">
-          {list.map((p) => (
-            <li key={p.id} className="flex items-center justify-between gap-3 border-b border-slate-800/60 py-1.5 last:border-0">
-              <Link to={`/projects/${p.id}`} className="truncate text-sm text-slate-200 hover:text-sky-400">
-                {p.title} <span className="text-slate-500">· {p.client?.email}</span>
-              </Link>
-              <div className="flex shrink-0 items-center gap-2">
-                <StatusBadge status={p.status} />
-                <button
-                  className="rounded px-2 py-0.5 text-xs text-rose-400 hover:bg-rose-950/60 hover:text-rose-200 disabled:opacity-50"
-                  disabled={busy === p.id}
-                  onClick={() => remove(p.id, p.title)}
-                >
-                  {busy === p.id ? "Deleting…" : "Delete"}
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </Card>
+      <section className="ap-card ap-panel">
+        <header><h2>All projects <span className="ap-badge">{list.length}</span></h2></header>
+        {list.length === 0 ? (
+          <p className="ap-allclear">No projects yet.</p>
+        ) : (
+          <div className="ap-table">
+            <table>
+              <thead><tr><th>Project</th><th>Progress</th><th>Spend</th><th>Status</th><th><span className="sr-only">Actions</span></th></tr></thead>
+              <tbody>
+                {list.map((p) => (
+                  <tr key={p.id}>
+                    <td>
+                      <Link to={`/projects/${p.id}`} className="ap-pname">{p.title}</Link>
+                      <div className="ap-pmail">{p.client?.email}</div>
+                    </td>
+                    <td><div className="ap-bar"><i style={{ width: `${Math.round(progressOf(p.status) * 100)}%` }} /></div></td>
+                    <td>${(p.costUsd ?? 0).toFixed(4)}</td>
+                    <td><StatusPill status={p.status} /></td>
+                    <td className="text-right"><DeleteButton busy={busy === p.id} onConfirm={() => remove(p.id, p.title)} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
