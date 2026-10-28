@@ -2,8 +2,7 @@ import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate } from "react
 import { useAppDispatch, useAppSelector } from "./store";
 import { logout } from "./store/authSlice";
 import { disconnectSocket } from "./hooks/useProjectSocket";
-import Login from "./pages/Login";
-import Signup from "./pages/Signup";
+import AuthPage from "./pages/AuthPage";
 import ProjectList from "./pages/ProjectList";
 import NewProject from "./pages/NewProject";
 import ProjectDashboard from "./pages/ProjectDashboard";
@@ -51,8 +50,9 @@ export default function App() {
       <Nav />
       <main className="mx-auto max-w-6xl px-4 py-6">
         <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
+          {/* One component for both, so switching slides the panel instead of reloading the page. */}
+          <Route path="/login" element={<AuthPage />} />
+          <Route path="/signup" element={<AuthPage />} />
           <Route path="/projects" element={<RequireAuth><ProjectList /></RequireAuth>} />
           <Route path="/projects/new" element={<RequireAuth><NewProject /></RequireAuth>} />
           <Route path="/projects/:id" element={<RequireAuth><ProjectDashboard /></RequireAuth>} />
