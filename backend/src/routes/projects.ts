@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
 import { transitionStatus, logEvent } from "../lib/events";
-import { aiClient } from "../lib/aiClient";
+import { aiClient, dispatch } from "../lib/aiClient";
 
 export const projectsRouter = Router();
 projectsRouter.use(requireAuth);
@@ -126,13 +126,7 @@ projectsRouter.post("/", async (req, res, next) => {
     });
 
     // Fire and forget: FastAPI returns immediately and works in the background.
-    aiClient.startWorkflow(project.id).catch(async (err) => {
-      console.error("[aiClient.start]", err);
-      await transitionStatus(project.id, "BLOCKED", {
-        message: `Could not reach the AI service: ${err.message}`,
-        patch: { blockedReason: String(err.message) },
-      }).catch(() => undefined);
-    });
+    dispatch(project.id, () => aiClient.startWorkflow(project.id));
 
     res.status(201).json({ project });
   } catch (e) {

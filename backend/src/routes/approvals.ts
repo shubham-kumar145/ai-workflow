@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/auth";
 import { transitionStatus } from "../lib/events";
-import { aiClient } from "../lib/aiClient";
+import { aiClient, dispatch } from "../lib/aiClient";
 
 export const approvalsRouter = Router();
 approvalsRouter.use(requireAuth);
@@ -130,7 +130,7 @@ approvalsRouter.post("/projects/:id/approvals", async (req, res, next) => {
         actor,
         data: { versionId: version?.id ?? null },
       });
-      aiClient.resumeWorkflow(project.id, "APPROVE_PLAN").catch(console.error);
+      dispatch(project.id, () => aiClient.resumeWorkflow(project.id, "APPROVE_PLAN"));
     } else if (body.stage === "PLAN") {
       await transitionStatus(project.id, "CHANGES_REQUESTED_PLAN", {
         message: `Client requested plan changes (${project.planRevisionCount + 1}/${project.maxPlanRevisions}).`,
@@ -142,7 +142,7 @@ approvalsRouter.post("/projects/:id/approvals", async (req, res, next) => {
         message: "Project Manager agent is replanning with the client's feedback.",
         actor: "system",
       });
-      aiClient.resumeWorkflow(project.id, "REVISE_PLAN", body.feedback).catch(console.error);
+      dispatch(project.id, () => aiClient.resumeWorkflow(project.id, "REVISE_PLAN", body.feedback));
     } else if (body.stage === "BUILD" && body.decision === "APPROVED") {
       await transitionStatus(project.id, "PRODUCTION_APPROVAL", {
         message: "Client approved the staging build. Waiting on admin sign-off for production.",
@@ -159,13 +159,13 @@ approvalsRouter.post("/projects/:id/approvals", async (req, res, next) => {
         message: "Developer agents are reworking the build.",
         actor: "system",
       });
-      aiClient.resumeWorkflow(project.id, "REVISE_BUILD", body.feedback).catch(console.error);
+      dispatch(project.id, () => aiClient.resumeWorkflow(project.id, "REVISE_BUILD", body.feedback));
     } else if (body.stage === "PRODUCTION") {
       await transitionStatus(project.id, "DEPLOYMENT", {
         message: "Admin approved production. DevOps agent is deploying.",
         actor,
       });
-      aiClient.resumeWorkflow(project.id, "DEPLOY_PRODUCTION").catch(console.error);
+      dispatch(project.id, () => aiClient.resumeWorkflow(project.id, "DEPLOY_PRODUCTION"));
     }
 
     const updated = await prisma.project.findUnique({ where: { id: project.id } });

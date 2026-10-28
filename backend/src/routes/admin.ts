@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth, requireAdmin } from "../middleware/auth";
 import { transitionStatus } from "../lib/events";
-import { aiClient } from "../lib/aiClient";
+import { aiClient, dispatch } from "../lib/aiClient";
 
 export const adminRouter = Router();
 adminRouter.use(requireAuth, requireAdmin);
@@ -81,9 +81,7 @@ adminRouter.post("/projects/:id/unblock", async (req, res, next) => {
 
     // The note is for the audit log only. Passed as feedback, the agents would treat
     // it as a client change request and rebuild every task, including finished ones.
-    aiClient
-      .resumeWorkflow(project.id, hasPlan > 0 ? "APPROVE_PLAN" : "REVISE_PLAN")
-      .catch(console.error);
+    dispatch(project.id, () => aiClient.resumeWorkflow(project.id, hasPlan > 0 ? "APPROVE_PLAN" : "REVISE_PLAN"));
 
     const updated = await prisma.project.findUnique({ where: { id: project.id } });
     res.json({ project: updated });

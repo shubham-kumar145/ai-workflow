@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { signToken } from "../lib/jwt";
 import { requireAuth } from "../middleware/auth";
+import { aiClient } from "../lib/aiClient";
 
 export const authRouter = Router();
 
@@ -61,6 +62,7 @@ authRouter.post("/login", authLimiter, async (req, res, next) => {
       return res.status(401).json({ error: "Invalid email or password" });
     }
     const token = signToken({ sub: user.id, email: user.email, role: user.role });
+    aiClient.wake(); // so a sleeping AI service is ready by the time a brief is submitted
     res.json({ token, user: publicUser(user) });
   } catch (e) {
     next(e);
@@ -71,6 +73,7 @@ authRouter.get("/me", requireAuth, async (req, res, next) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.user!.sub } });
     if (!user) return res.status(404).json({ error: "User not found" });
+    aiClient.wake(); // runs when a signed-in user opens the site
     res.json({ user: publicUser(user) });
   } catch (e) {
     next(e);

@@ -10,7 +10,7 @@ import { AgentRunsTable } from "../components/AgentRunsTable";
 import { ApprovalPanel } from "../components/ApprovalPanel";
 import { PlanView } from "../components/PlanView";
 import { RevisionBadges } from "../components/RevisionBadges";
-import { Alert, Button, Card, Empty, StatusBadge } from "../components/ui";
+import { Alert, Button, Card, Empty, LongText, StatusBadge } from "../components/ui";
 import { api } from "../api/client";
 
 export default function ProjectDashboard() {
@@ -76,7 +76,7 @@ export default function ProjectDashboard() {
 
       {project.status === "BLOCKED" && (
         <Alert>
-          <strong>Escalated to a human.</strong> {project.blockedReason ?? "The agents could not continue."}
+          <strong>Escalated to a human.</strong> <LongText text={project.blockedReason ?? "The agents could not continue."} />
         </Alert>
       )}
       {overBudget && (

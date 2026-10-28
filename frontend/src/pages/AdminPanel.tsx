@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import { useAppDispatch, useAppSelector } from "../store";
 import { fetchProjects, unblockProject } from "../store/projectsSlice";
-import { Button, Card, Empty, StatusBadge } from "../components/ui";
+import { Button, Card, Empty, LongText, StatusBadge } from "../components/ui";
 
 interface Stats {
   projects: number; blocked: number; completed: number;
@@ -84,7 +84,7 @@ export default function AdminPanel() {
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-950/60 p-3">
                 <div className="min-w-0">
                   <Link to={`/projects/${p.id}`} className="font-medium text-slate-100 hover:text-sky-400">{p.title}</Link>
-                  <p className="text-xs text-rose-300">{p.blockedReason ?? "Blocked"}</p>
+                  <div className="text-xs text-rose-300"><LongText text={p.blockedReason ?? "Blocked"} max={180} /></div>
                 </div>
                 <div className="flex gap-2">
                   <Button variant="ghost" disabled={busy === p.id} onClick={() => unblock(p.id)}>

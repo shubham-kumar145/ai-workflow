@@ -86,6 +86,20 @@ export function Alert({ children, tone = "error" }: { children: ReactNode; tone?
   return <div className={`rounded-lg border px-3 py-2 text-sm ${styles}`}>{children}</div>;
 }
 
+/** Long error text (stack traces, server pages) shown short, with the rest one click away. */
+export function LongText({ text, max = 240 }: { text: string; max?: number }) {
+  if (text.length <= max) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, max).trimEnd()}…{" "}
+      <details className="mt-1 inline-block w-full">
+        <summary className="cursor-pointer text-xs font-semibold underline opacity-80">Show details</summary>
+        <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-slate-950/60 p-2 text-[11px] opacity-90">{text}</pre>
+      </details>
+    </>
+  );
+}
+
 export function Empty({ children }: { children: ReactNode }) {
   return <p className="py-6 text-center text-sm text-slate-500">{children}</p>;
 }
